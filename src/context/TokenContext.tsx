@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { getNetworkById } from "@/constants/network";
-import {getCoinBundles} from '@/utils/tokenUtils'
+import {getCoinBundles,getStockBundlesByTag} from '@/utils/tokenUtils'
+import {stockList} from "@/constants/stock"; // adjust path if needed
 
 function getAddressForChain(
   contractAddresses: string[],
@@ -40,6 +41,10 @@ export const TokenProvider = ({ children }: { children: React.ReactNode }) => {
   const [stockBundles, setStockBundles]:any = useState({});
   const [stockTokens,setStockTokens] = useState<any[]>([]);
 
+  const stockTagMap = new Map(
+    stockList.map((s: any) => [s.address.toLowerCase(), s.tag])
+  );
+
   useEffect(() => {
     const networkObj=getNetworkById(network)
     setChain(networkObj?.value || '');
@@ -73,12 +78,15 @@ export const TokenProvider = ({ children }: { children: React.ReactNode }) => {
               const address = getAddressForChain(
                 t.contractAddresses,
                 chain
-              );
+              )?.toLowerCase() || "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+              // Try to get tag from stock.ts, fallback to t.tag
+              const tag = stockTagMap.get(address) || t.tag;
               return [
                 t.uuid,
                 {
                   ...t,
-                  address: address || "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                  address,
+                  tag,
                 },
               ];
             })
@@ -123,22 +131,28 @@ export const TokenProvider = ({ children }: { children: React.ReactNode }) => {
               const address = getAddressForChain(
                 t.contractAddresses,
                 chain
-              );
+              )?.toLowerCase() || "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+              // Try to get tag from stock.ts, fallback to t.tag
+              const tag = stockTagMap.get(address) || t.tag;
               return [
                 t.uuid,
                 {
                   ...t,
-                  address: address || "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                  address,
+                  tag,
                 },
               ];
             })
           ).values()
         );
 
-        setStockTokens(uniqueTokens || []);
-        //console.log("Fetched stock tokens:", uniqueTokens);
+        setStockTokens(uniqueTokens?.filter((item:any)=>{
+            return item?.price!=null
+        }) || []);
         let bundles = getCoinBundles(uniqueTokens || []);
-        setStockBundles(bundles);
+        let tagBundles = getStockBundlesByTag(uniqueTokens || []);
+        //console.log("Fetched stock bundles:", [...bundles, ...tagBundles]);
+        setStockBundles([...bundles, ...tagBundles]);
       } catch (err) {
         console.error("Failed to fetch market tokens:", err);
       }

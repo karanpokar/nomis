@@ -35,3 +35,30 @@ export function getCoinBundles(coins, limit = 5) {
     makeBundle("Oldest", topN(sortBy("listedAt", false))),
   ];
 }
+
+// Group stocks by tag and return top-5 by marketCap for each tag
+export function getStockBundlesByTag(stocks, limit = 5) {
+  const grouped = stocks.reduce((acc, stock) => {
+    const tag = stock.tag || "other";
+    if (!acc[tag]) acc[tag] = [];
+    acc[tag].push(stock);
+    return acc;
+  }, {});
+
+  const sortByMarketCap = arr =>
+    [...arr].sort((a, b) => Number(b.marketCap || 0) - Number(a.marketCap || 0));
+
+  const makeBundle = (tag, arr) => ({
+    tag,
+    images: arr.map(c => c.iconUrl),
+    minimumBuy: 10,
+    marketCap: arr.reduce((a, b) => a + Number(b.marketCap || 0), 0) / arr.length,
+    change: arr.reduce((a, b) => a + Number(b.change || 0), 0) / arr.length,
+    v24hVolume: arr.reduce((a, b) => a + Number(b["24hVolume"] || 0), 0) / arr.length,
+    coins: arr
+  });
+
+  return Object.entries(grouped).map(([tag, arr]) =>
+    makeBundle(tag, sortByMarketCap(arr).slice(0, limit))
+  );
+}
