@@ -25,7 +25,7 @@ const VerificationQRModal: React.FC = () => {
 
       <DialogContent sx={{ textAlign: 'center', pb: 3 }}>
         <Typography variant="body2" sx={{ mb: 2 }}>
-          Scan this QR code with the Self app
+          Scan this QR code with the Self app to verify your identity.
         </Typography>
 
         {selfApp ? (

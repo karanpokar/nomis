@@ -94,7 +94,6 @@ const SwapContext = createContext<SwapContextType | undefined>(undefined);
 const ODOS_BASE = "https://api.odos.xyz";
 
 export const SwapProvider = ({ children }: { children: ReactNode }) => {
-  // Your app's user hook (selectedChain, primaryWallet, provider)
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const UserContext = require("./UserContext");
   const { useUser } = UserContext;
@@ -294,12 +293,13 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
       if (quoteAbortRef.current) quoteAbortRef.current.abort();
       quoteAbortRef.current = new AbortController();
       const signal = quoteAbortRef.current.signal;
-
+      
       try {
         if (!selectedChain || !primaryWallet?.address) throw new Error("chain or wallet missing");
 
         if (mode === "buy") {
           // decimal helpers
+          setBuyQuote(null);
           const parseDecimal = (s: string) => {
             if (s === undefined || s === null) return { int: 0n, scale: 1n };
             const str = String(s).trim();
@@ -364,8 +364,9 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
           setLoading(false);
           return normalized; // <-- return fresh quote
         }
-        console.log('SellTokens',sellTokens,amounts,mode)
+        //console.log('SellTokens',sellTokens,amounts,mode)
         if (mode === "sell") {
+          setSellQuote(null);
           const inputs: { tokenAddress: string; amount: string }[] = [];
           for (const t of sellTokens) {
             const amtStr = t.amount ?? amounts[t.address] ?? "0";
@@ -400,8 +401,9 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
           setLoading(false);
           return normalized; // <-- return fresh quote
         }
-
+        /*This is not required right now as we dont support this feature */
         if (mode === "perToken") {
+
           const tokenAddress = options?.tokenAddress;
           if (!tokenAddress) throw new Error("tokenAddress required");
 

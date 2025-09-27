@@ -32,36 +32,7 @@ useEffect(() => {
     }
   }, [network]);
 
-  useEffect(() => {
-    const fetchTokens = async () => {
-      //if (!primaryWallet?.address || !selectedChain) return;
-        let demo='0xBC98fa6f8501aC06BfB839459Ee2E6c76a0cF8de'
-      try {
-        const res = await fetch(
-          `https://public-backend.bungee.exchange/api/v1/tokens/list?userAddress=${demo}&chainIds=137`,
-          {
-            headers: {
-              "Accept": "application/json",
-            },
-          }
-        );
-
-        if (!res.ok) {
-          console.error("Error fetching tokens:", res.statusText);
-          return;
-        }
-
-        const data = await res.json();
-        // Bungee returns tokens in data.supportedTokens or data.tokens depending on the chain
-        setTokens(data?.result?.[`${selectedChain?.chainId}`] || []);
-        
-      } catch (err) {
-        console.error("Failed to fetch tokens:", err);
-      }
-    };
-
-    fetchTokens();
-  }, [primaryWallet, selectedChain]);
+ 
 
   return (
     /*@ts-ignore*/
