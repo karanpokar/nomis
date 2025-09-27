@@ -12,7 +12,7 @@ import {
   Typography,
   AvatarGroup,
   Avatar,
-  Tooltip
+  Tooltip,
 } from "@mui/material";
 import { useSwap } from "@/context/SwapContext";
 import toast from "react-hot-toast";
@@ -39,7 +39,7 @@ type Bundle = {
 };
 
 export default function BundleTable({ bundles }: { bundles: any[] }) {
-  const {addBuyToken}=useSwap()
+  const { addBuyToken, buyTokens } = useSwap();
   return (
     <TableContainer
       component={Paper}
@@ -61,50 +61,59 @@ export default function BundleTable({ bundles }: { bundles: any[] }) {
           {bundles.map((bundle) => (
             <TableRow key={bundle.name}>
               {/* Bundle name + icons */}
-              
-              <TableCell>
-               
 
-                  <Typography fontWeight={600}>{bundle.name}</Typography>
-               
+              <TableCell>
+                <Typography fontWeight={600}>{bundle.name}</Typography>
               </TableCell>
-              
+
               <TableCell>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <AvatarGroup
-    max={5}
-    sx={{ "& .MuiAvatar-root": { width: 28, height: 28 } }}
-  >
-    {bundle.coins.map((coin:any, i:any) => (
-      <Tooltip key={coin.uuid} title={`${coin.name} (${coin.symbol})`} arrow>
-        <Avatar
-          src={coin.iconUrl}
-          alt={coin.symbol}
-          sx={{ border: "2px solid #fff", cursor: "pointer" }}
-        />
-      </Tooltip>
-    ))}
-  </AvatarGroup>
-                 
+                    max={5}
+                    sx={{ "& .MuiAvatar-root": { width: 28, height: 28 } }}
+                  >
+                    {bundle.coins.map((coin: any, i: any) => (
+                      <Tooltip
+                        key={coin.uuid}
+                        title={`${coin.name} (${coin.symbol})`}
+                        arrow
+                      >
+                        <Avatar
+                          src={coin.iconUrl}
+                          alt={coin.symbol}
+                          sx={{ border: "2px solid #fff", cursor: "pointer" }}
+                        />
+                      </Tooltip>
+                    ))}
+                  </AvatarGroup>
                 </Box>
               </TableCell>
 
               {/* Avg Market Cap */}
               <TableCell align="right">
-                ${bundle.marketCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                $
+                {bundle.marketCap.toLocaleString(undefined, {
+                  maximumFractionDigits: 0,
+                })}
               </TableCell>
 
               {/* Avg Change */}
               <TableCell
                 align="right"
-                sx={{ color: bundle.change >= 0 ? "green" : "red", fontWeight: 600 }}
+                sx={{
+                  color: bundle.change >= 0 ? "green" : "red",
+                  fontWeight: 600,
+                }}
               >
                 {bundle.change.toFixed(2)}%
               </TableCell>
 
               {/* Avg 24h Volume */}
               <TableCell align="right">
-                ${bundle.v24hVolume.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                $
+                {bundle.v24hVolume.toLocaleString(undefined, {
+                  maximumFractionDigits: 0,
+                })}
               </TableCell>
 
               {/* Action */}
@@ -113,12 +122,16 @@ export default function BundleTable({ bundles }: { bundles: any[] }) {
                   variant="contained"
                   size="small"
                   sx={{ borderRadius: 2, textTransform: "none" }}
-                  onClick={() =>{
-
-                    bundle.coins.forEach((coin:any) => {
-                      addBuyToken(coin);
-                    })
-                    toast.success('Bundle added to Buy Cart!')
+                  onClick={() => {
+                    if (buyTokens.length + bundle.coins.length > 5) {
+                      toast.error("You can add maximum 5 tokens in Buy Cart!");
+                      return;
+                    }  
+                      bundle.coins.forEach((coin: any) => {
+                        addBuyToken(coin);
+                        toast.success("Bundle added to Buy Cart!");
+                      });
+                    
                   }}
                 >
                   Invest

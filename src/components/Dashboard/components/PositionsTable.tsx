@@ -72,19 +72,13 @@ export default function PositionsTable() {
     }
   }, [walletAddress, selectedChain?.chainId, fetchUserTokens]);
 
-  const isStablecoin = (token: TokenBalanceRow) => {
-    const stables = ["USDC", "USDT", "DAI", "BUSD", "TUSD", "USDP", "FDUSD", "USDS"];
-    return stables.includes((token.symbol || "").toUpperCase()) || (token.name || "").toLowerCase().includes("usd");
-  };
+
 
   const isInSellToken = (token: TokenBalanceRow) => {
     return sellTokens.some((t: any) => t.address?.toLowerCase() === token.address?.toLowerCase());
   };
 
-  const safeNumber = (v: any) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : 0;
-  };
+
 
   // Show loading state
   if (loading) {
@@ -226,6 +220,10 @@ export default function PositionsTable() {
 });
                         } else {
                           // add token object compatible with SwapContext Token type
+                          if(sellTokens.length>=5){
+                            toast.error('You can only add up to 5 tokens in the Sell Cart!');
+                            return;
+                          }
                           addSellToken({
                             address: row.address,
                             symbol: row.symbol,
