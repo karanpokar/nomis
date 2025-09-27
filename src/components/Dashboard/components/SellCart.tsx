@@ -180,7 +180,7 @@ console.log(sellQuote)
                   <Box>
                     <Typography fontWeight={600}>{token.symbol}</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Balance: {displayBalance?.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                      Balance: {(parseFloat(displayBalance)?.toFixed(4))}
                     </Typography>
                   </Box>
                 </Box>
@@ -253,7 +253,7 @@ console.log(sellQuote)
         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
           <Typography color="text.secondary">Estimated Output ({sellOutputStable})</Typography>
           <Typography fontWeight={600}>
-            {quoteLoading ? <CircularProgress size={18} /> : `$${sellQuote?.raw?.outValues?.[0] || sellQuote?.outValues?.[0] || ''}`}
+            {quoteLoading ? <CircularProgress size={18} /> : `$${parseFloat(sellQuote?.raw?.outValues?.[0])?.toFixed(4) || parseFloat(sellQuote?.outValues?.[0])?.toFixed(3) || ''}`}
           </Typography>
         </Box>
 

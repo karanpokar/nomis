@@ -22,7 +22,7 @@ export default function Sidebar({ selectedTab, setSelectedTab }: { selectedTab: 
     { label: "Market", icon: <ShowChartIcon /> },
     { label: "Bundles", icon: <SavingsIcon /> },
     { label: "Positions", icon: <AccountBalanceWalletIcon /> },
-    { label: "Yields", icon: <SavingsIcon /> },
+    // { label: "Yields", icon: <SavingsIcon /> },
   ];
 
   const secondaryMenu = [
