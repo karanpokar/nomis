@@ -299,7 +299,7 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
 
         if (mode === "buy") {
           // decimal helpers
-          setBuyQuote(null);
+          //setBuyQuote(null);
           const parseDecimal = (s: string) => {
             if (s === undefined || s === null) return { int: 0n, scale: 1n };
             const str = String(s).trim();

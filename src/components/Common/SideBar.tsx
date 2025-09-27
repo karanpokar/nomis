@@ -15,8 +15,13 @@ import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import SavingsIcon from "@mui/icons-material/Savings";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import Logo from '../../asset/logo.png'
+import Badge from "@mui/material/Badge";
+import { useTokenContext } from "@/context/TokenContext";
+import { useSwap } from "@/context/SwapContext";
+
 export default function Sidebar({ selectedTab, setSelectedTab }: { selectedTab: string, setSelectedTab: (tab: string) => void }) {
   //const [selectedTab, setSelectedTab] = useState("Market");
+  const {buyTokens}=useSwap();
 
   const mainMenu = [
     { label: "Market", icon: <ShowChartIcon /> },
@@ -85,26 +90,45 @@ export default function Sidebar({ selectedTab, setSelectedTab }: { selectedTab: 
 
         {/* Secondary Menu (Cart) */}
         <List>
-          {secondaryMenu.map((item) => (
-            <ListItem key={item.label} disablePadding sx={{ mb: 1 }}>
-              <ListItemButton
-                selected={selectedTab === item.label}
-                onClick={() => setSelectedTab(item.label)}
-                sx={{
-                  borderRadius: 2,
-                  "&.Mui-selected": {
-                    bgcolor: "#1976d2",
-                    color: "white",
-                    "& .MuiListItemIcon-root": { color: "white" },
-                  },
-                }}
+  {secondaryMenu.map((item) => {
+    const isSelected = selectedTab === item.label;
+    const isCart = item.label === "Cart";
+
+    return (
+      <ListItem key={item.label} disablePadding sx={{ mb: 1 }}>
+        <ListItemButton
+          selected={isSelected}
+          onClick={() => setSelectedTab(item.label)}
+          sx={{
+            borderRadius: 2,
+            "&.Mui-selected": {
+              bgcolor: "#1976d2",
+              color: "white",
+              "& .MuiListItemIcon-root": { color: "white" },
+            },
+          }}
+        >
+          <ListItemIcon>
+            {isCart ? (
+              <Badge
+                badgeContent={buyTokens?.length}
+                color="error"
+                invisible={buyTokens?.length==0} // hide when 0
+                anchorOrigin={{ vertical: "top", horizontal: "right" }}
+                overlap="circular"
               >
-                <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText primary={item.label} />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
+                {item.icon}
+              </Badge>
+            ) : (
+              item.icon
+            )}
+          </ListItemIcon>
+          <ListItemText primary={item.label} />
+        </ListItemButton>
+      </ListItem>
+    );
+  })}
+</List>
       </Box>
 
       {/* Footer */}
