@@ -1,11 +1,20 @@
 "use client";
-import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback, useMemo } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import { ethers } from "ethers";
 import { isZeroDevConnector } from "@dynamic-labs/ethereum-aa";
 import { parseUnits } from "viem";
 import { useTokenContext } from "./TokenContext";
 
-// Minimal ERC20 ABI (allowance, approve, decimals, balanceOf)
+// ---------------- ERC20 ABI ----------------
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) external returns (bool)",
   "function allowance(address owner, address spender) external view returns (uint256)",
@@ -13,6 +22,7 @@ const ERC20_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
 ];
 
+// ---------------- Types ----------------
 export type Token = {
   address: string;
   symbol: string;
@@ -48,7 +58,7 @@ export type SwapContextType = {
   defaultBuyToken: Token | null;
   defaultSellToken: Token | null;
 
-  // new multi-stable state
+  // multi-stable state
   buyInputStable: StableSymbol;
   sellOutputStable: StableSymbol;
   setBuyInputStable: (s: StableSymbol) => void;
@@ -62,21 +72,32 @@ export type SwapContextType = {
   updateAmount: (address: string, amount: string) => void;
   clearCart: () => void;
 
-  getQuote: (mode?: "buy" | "sell" | "perToken", options?: { slippage?: number; tokenAddress?: string }) => Promise<void>;
-  assembleTransaction: (options?: { simulate?: boolean; quoteType?: "buy" | "sell" | "perToken"; tokenAddress?: string }) => Promise<any | null>;
+  // IMPORTANT: now returns the normalized quote
+  getQuote: (
+    mode?: "buy" | "sell" | "perToken",
+    options?: { slippage?: number; tokenAddress?: string }
+  ) => Promise<QuoteResponse>;
+
+  // IMPORTANT: can accept a quote override
+  assembleTransaction: (options?: {
+    simulate?: boolean;
+    quoteType?: "buy" | "sell" | "perToken";
+    tokenAddress?: string;
+    quote?: QuoteResponse;
+  }) => Promise<any | null>;
+
   executeSwap: (options?: ExecuteOptions) => Promise<string | null>;
 };
 
 const SwapContext = createContext<SwapContextType | undefined>(undefined);
-
 const ODOS_BASE = "https://api.odos.xyz";
 
 export const SwapProvider = ({ children }: { children: ReactNode }) => {
-  // adapt this to your project: useUser should return selectedChain, primaryWallet { address }, tokens[], provider (ethers provider)
+  // Your app's user hook (selectedChain, primaryWallet, provider)
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const UserContext = require("./UserContext");
   const { useUser } = UserContext;
-  const { selectedChain, primaryWallet, tokens, provider } = useUser();
+  const { selectedChain, primaryWallet, provider } = useUser();
 
   // state
   const [buyTokens, setBuyTokens] = useState<Token[]>([]);
@@ -105,19 +126,7 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
 
   // ---------------- utilities ----------------
   function toUnits(amount: string | number, decimals = 18): bigint {
-    try {
-      return ethers.parseUnits(String(amount || "0"), decimals);
-    } catch (e) {
-      return 0n;
-    }
-  }
-
-  function fromUnits(value: bigint, decimals = 18): string {
-    try {
-      return ethers.formatUnits(value, decimals);
-    } catch (e) {
-      return "0";
-    }
+    try { return ethers.parseUnits(String(amount || "0"), decimals); } catch { return 0n; }
   }
 
   function getTokenObj(address: string) {
@@ -128,9 +137,7 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
   function findTokenBySymbol(symbol: StableSymbol, searchList?: Array<any>) {
     const list = searchList ?? marketTokens;
     if (!list || !Array.isArray(list)) return null;
-    return (
-      list.find((t: any) => (t?.symbol || "").toUpperCase() === symbol) || null
-    );
+    return list.find((t: any) => (t?.symbol || "").toUpperCase() === symbol) || null;
   }
 
   const STABLE_FALLBACKS: Record<number, Partial<Record<StableSymbol, string>>> = {
@@ -139,42 +146,14 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
       USDT: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
       PYUSD: "0x6c3ea9036406852006290770BEdFcAbA0e23A0e8",
     },
-    10: { // Optimism
-      USDC: "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
-      USDT: "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
-    },
-    42161: { // Arbitrum
-      USDC: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
-      USDT: "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
-    },
-    8453: { // Base
-      USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-      USDT: "0x2f0C1cE59F0bA5C67C5C7f3a52f1dC1D9B9aCe04", // verify for your setup
-    },
-    137: { // Polygon
-      USDC: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
-      USDT: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
-    },
-    56: { // BSC
-      USDC: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-      USDT: "0x55d398326f99059ff775485246999027b3197955",
-    },
-    43114: { // Avalanche
-      USDC: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
-      USDT: "0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7",
-    },
-    250: { // Fantom
-      USDC: "0x04068DA6C83AFCFA0e13ba15A6696662335D5B75",
-      USDT: "0x049d68029688eAbF473097a2fC38ef61633A3C7A",
-    },
-    42220: { // Celo
-      USDC: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
-      USDT: "0x617f3112bf5397D0467D315cC709EF968D9ba546", // example/placeholder
-    },
-    324: { // zkSync
-      USDC: "0x1d17CBcF0D6D143135aE902365D2E5e2A16538D4",
-      // USDT may differ / be unsupported — add if applicable
-    },
+    10: { USDC: "0x7F5c764cBc14f9669B88837ca1490cCa17c31607", USDT: "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58" },
+    42161: { USDC: "0xaf88d065e77c8cc2239327c5edb3a432268e5831", USDT: "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9" },
+    8453: { USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" }, // Base (add USDT if you support)
+    137: { USDC: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", USDT: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F" },
+    56: { USDC: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d", USDT: "0x55d398326f99059ff775485246999027b3197955" },
+    43114: { USDC: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", USDT: "0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7" },
+    250: { USDC: "0x04068DA6C83AFCFA0e13ba15A6696662335D5B75", USDT: "0x049d68029688eAbF473097a2fC38ef61633A3C7A" },
+    42220:{ USDC: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C" },
   };
 
   function getStableAddressForChain(chainId: number | string, symbol: StableSymbol, marketTokensParam?: Array<any>) {
@@ -189,6 +168,8 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
     const id = Number(chainId);
     return symbols
       .map((sym) => {
+        // Only include PYUSD on Ethereum mainnet
+        if (sym === "PYUSD" && id !== 1) return null;
         const addr = getStableAddressForChain(id, sym);
         return addr ? { symbol: sym, address: addr } : null;
       })
@@ -205,9 +186,8 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
   }, [marketTokens]);
 
   // ---------------- quote normalization helper ----------------
-  const normalizeOdosQuote = (data: any, chainId: number | string, preferredOutputAddr?: string) => {
+  const normalizeOdosQuote = (data: any, _chainId: number | string, preferredOutputAddr?: string) => {
     const normalized: any = { raw: data };
-
     try {
       // gasEstimateValue
       if (data?.gasEstimateValue !== undefined && data?.gasEstimateValue !== null) {
@@ -246,14 +226,9 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // outValues
-      if (Array.isArray(data?.outValues)) {
-        normalized.outValues = data.outValues.map((v: any) => {
-          const n = Number(v);
-          return Number.isFinite(n) ? n : parseFloat(String(v)) || 0;
-        });
-      } else {
-        normalized.outValues = [];
-      }
+      normalized.outValues = Array.isArray(data?.outValues)
+        ? data.outValues.map((v: any) => (Number.isFinite(Number(v)) ? Number(v) : parseFloat(String(v)) || 0))
+        : [];
 
       // inputTokens (human)
       normalized.inputTokens = (data.inputTokens || data.inputs || []).map((it: any) => {
@@ -262,9 +237,7 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
         const dec = Number(tokenObj?.decimals ?? it.decimals ?? 18);
         let human = 0;
         try {
-          if (it.amount !== undefined && it.amount !== null) {
-            human = Number(ethers.formatUnits(BigInt(String(it.amount)), dec));
-          }
+          if (it.amount !== undefined && it.amount !== null) human = Number(ethers.formatUnits(BigInt(String(it.amount)), dec));
         } catch {
           human = Number(it.amount) / Math.pow(10, dec);
         }
@@ -279,7 +252,6 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
       normalized.outValues = data?.outValues || [];
       normalized.inputTokens = data?.inputTokens || [];
     }
-
     return normalized;
   };
 
@@ -291,7 +263,6 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
       return [...prev, { ...token, amount: token.amount ?? "" }];
     });
   };
-
   const addSellToken = (token: Token) => {
     setSellTokens((prev) => {
       if (prev.find((t) => t.address.toLowerCase() === token.address.toLowerCase())) return prev;
@@ -299,38 +270,24 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
       return [...prev, { ...token, amount: token.amount ?? "" }];
     });
   };
-
   const removeBuyToken = (address: string) => {
     setBuyTokens((prev) => prev.filter((t) => t.address.toLowerCase() !== address.toLowerCase()));
-    setAmounts((prev) => {
-      const copy = { ...prev };
-      delete copy[address];
-      return copy;
-    });
+    setAmounts((prev) => { const copy = { ...prev }; delete copy[address]; return copy; });
   };
-
   const removeSellToken = (address: string) => {
     setSellTokens((prev) => prev.filter((t) => t.address.toLowerCase() !== address.toLowerCase()));
   };
-
   const updateAmount = (address: string, amount: string) => {
     setAmounts((prev) => ({ ...prev, [address]: amount }));
   };
-
   const clearCart = () => {
-    setBuyTokens([]);
-    setSellTokens([]);
-    setAmounts({});
-    setBuyQuote(null);
-    setSellQuote(null);
-    setPerTokenQuotes({});
-    setAssembledTx(null);
-    setError(null);
+    setBuyTokens([]); setSellTokens([]); setAmounts({}); setBuyQuote(null); setSellQuote(null);
+    setPerTokenQuotes({}); setAssembledTx(null); setError(null);
   };
 
   // ---------------- quoting ----------------
   const getQuote = useCallback(
-    async (mode: "buy" | "sell" | "perToken" = "buy", options?: { slippage?: number; tokenAddress?: string }) => {
+    async (mode: "buy" | "sell" | "perToken" = "buy", options?: { slippage?: number; tokenAddress?: string }): Promise<QuoteResponse> => {
       setLoading(true);
       setError(null);
       if (quoteAbortRef.current) quoteAbortRef.current.abort();
@@ -341,156 +298,72 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
         if (!selectedChain || !primaryWallet?.address) throw new Error("chain or wallet missing");
 
         if (mode === "buy") {
-  // --- config: flip to true to force equal-weight always ---
-  const forceEqualWeight = false;
+          // decimal helpers
+          const parseDecimal = (s: string) => {
+            if (s === undefined || s === null) return { int: 0n, scale: 1n };
+            const str = String(s).trim();
+            if (str === "") return { int: 0n, scale: 1n };
+            if (!str.includes(".")) return { int: BigInt(str), scale: 1n };
+            const [whole, frac] = str.split(".");
+            const combined = (whole || "0") + (frac || "");
+            const int = BigInt(combined.replace(/^0+/, "") || "0");
+            const scale = 10n ** BigInt(frac.length);
+            return { int, scale };
+          };
+          const mulDecimalToBigInt = (aStr: string, bStr: string, targetScale: bigint) => {
+            const a = parseDecimal(aStr); const b = parseDecimal(bStr);
+            const productInt = a.int * b.int; const productScale = a.scale * b.scale;
+            const numerator = productInt * targetScale + productScale / 2n; // round half-up
+            return numerator / productScale;
+          };
 
-  // helpers (unchanged)
-  const parseDecimal = (s: string) => {
-    if (s === undefined || s === null) return { int: 0n, scale: 1n };
-    const str = String(s).trim();
-    if (str === "") return { int: 0n, scale: 1n };
-    if (!str.includes(".")) return { int: BigInt(str), scale: 1n };
-    const [whole, frac] = str.split(".");
-    const combined = (whole || "0") + (frac || "");
-    const int = BigInt(combined.replace(/^0+/, "") || "0");
-    const scale = BigInt(10) ** BigInt(frac.length);
-    return { int, scale };
-  };
+          const updated = buyTokens.map((t) => ({ ...t, amount: String(amounts[t.address] ?? t.amount ?? "0") }));
+          if (updated.length === 0) { setBuyQuote(null); setLoading(false); return null; }
 
-  const mulDecimalToBigInt = (aStr: string, bStr: string, targetScale: bigint) => {
-    const a = parseDecimal(aStr);
-    const b = parseDecimal(bStr);
-    const productInt = a.int * b.int;
-    const productScale = a.scale * b.scale;
-    // banker-ish rounding to nearest
-    const numerator = productInt * targetScale + productScale / 2n;
-    return numerator / productScale;
-  };
+          const inAddr = getStableAddressForChain(selectedChain?.chainId, buyInputStable);
+          if (!inAddr) throw new Error(`${buyInputStable} address not found for chain`);
+          const inTok = getTokenObj(inAddr);
+          const inDecimals = Number(inTok?.decimals ?? 6);
+          const UNIT = 10n ** BigInt(inDecimals);
 
-  const updated = buyTokens.map((t) => ({
-    ...t,
-    amount: String(amounts[t.address] ?? t.amount ?? "0"),
-  }));
-  if (updated.length === 0) { setBuyQuote(null); setLoading(false); return; }
+          const perTokenUnits: Array<{ token: any; units: bigint }> = [];
+          for (const t of updated) {
+            const units = mulDecimalToBigInt(String(t.amount ?? "0"), String(t.price ?? "0"), UNIT);
+            perTokenUnits.push({ token: t, units });
+          }
+          const totalUnits = perTokenUnits.reduce((acc, x) => acc + (x.units ?? 0n), 0n);
+          if (totalUnits <= 0n) { setBuyQuote(null); setLoading(false); throw new Error("missing price or amount data for tokens"); }
 
-  const inAddr = getStableAddressForChain(selectedChain?.chainId, buyInputStable);
-  if (!inAddr) throw new Error(`${buyInputStable} address not found for chain`);
-  const inTok = getTokenObj(inAddr);
-  const inDecimals = Number(inTok?.decimals ?? 6);
-  const UNIT = 10n ** BigInt(inDecimals); // scale of input stable
+          const SCALE = 10n ** 18n;
+          const parts: bigint[] = perTokenUnits.map((p) => (p.units * SCALE) / totalUnits);
+          const sumParts = parts.reduce((a, b) => a + b, 0n);
+          const remainder = SCALE - sumParts; if (remainder !== 0n) parts[parts.length - 1] += remainder;
 
-  // Determine if amounts are all equal (treat empty/0 as 0)
-  const nonZero = updated.map(t => String(t.amount ?? "0"));
-  const allEqual = nonZero.every(v => v === nonZero[0]);
+          const outputTokens = parts.map((p, idx) => ({
+            tokenAddress: perTokenUnits[idx].token.address,
+            proportion: Number(p) / Number(SCALE),
+          }));
 
-  // Option A: equal-weight proportions (ignore prices)
-  if (forceEqualWeight || (allEqual && updated.length > 0)) {
-    const n = BigInt(updated.length);
-    const SCALE = 10n ** 18n;             // proportions scale (18 decimals)
-    const base = SCALE / n;
-    const parts: bigint[] = new Array(updated.length).fill(base);
-    // fix remainder so sum == 1
-    const used = base * n;
-    if (used < SCALE) parts[parts.length - 1] += (SCALE - used);
+          const body = {
+            chainId: Number(selectedChain?.chainId),
+            compact: true,
+            inputTokens: [{ tokenAddress: inAddr, amount: totalUnits.toString() }],
+            outputTokens,
+            slippageLimitPercent: options?.slippage ?? 0.5,
+            userAddr: primaryWallet.address,
+            referralCode: 0,
+          };
 
-    // input amount: if you still want to compute from amounts×price, do that here;
-    // otherwise you may want to accept a separate "budget" input. We’ll keep your
-    // current behavior (use amounts×price to derive total spend).
-    let totalUnits = 0n;
-    for (const t of updated) {
-      const units = mulDecimalToBigInt(String(t.amount ?? "0"), String(t.price ?? "0"), UNIT);
-      totalUnits += units;
-    }
-    if (totalUnits <= 0n) { setBuyQuote(null); setLoading(false); throw new Error("missing price or amount data for tokens"); }
-
-    const outputTokens = parts.map((p, i) => {
-      // send as number with 18-dec precision; alternatively send string "0.xxxxxx"
-      const proportion = Number(p) / Number(SCALE);
-      return { tokenAddress: updated[i].address, proportion };
-    });
-
-    const body = {
-      chainId: Number(selectedChain?.chainId),
-      compact: true,
-      inputTokens: [{ tokenAddress: inAddr, amount: totalUnits.toString() }],
-      outputTokens,
-      slippageLimitPercent: options?.slippage ?? 0.5,
-      userAddr: primaryWallet.address,
-      referralCode: 0,
-    };
-
-    const res = await fetch(`${ODOS_BASE}/sor/quote/v2`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body), signal,
-    });
-    if (!res.ok) throw new Error(`Odos buy quote failed: ${await res.text()}`);
-    const data = await res.json();
-    const normalized = normalizeOdosQuote(data, selectedChain?.chainId);
-    setBuyQuote(normalized);
-    setLoading(false);
-    return;
-  }
-
-  // Option B: value-weighted (amount × price), your original intent
-  const perTokenUnits: Array<{ token: any; units: bigint }> = [];
-  for (const t of updated) {
-    const amountStr = String(t.amount ?? "0");
-    const priceStr = String(t.price ?? "0");
-    const units = mulDecimalToBigInt(amountStr, priceStr, UNIT);
-    perTokenUnits.push({ token: t, units });
-  }
-
-  const totalUnits = perTokenUnits.reduce((acc, x) => acc + (x.units ?? 0n), 0n);
-  if (totalUnits <= 0n) {
-    setBuyQuote(null); setLoading(false);
-    throw new Error("missing price or amount data for tokens");
-  }
-
-  // proportions in 18-dec fixed-point, normalized to sum==1
-  const SCALE = 10n ** 18n;
-  const parts: bigint[] = perTokenUnits.map((p) => (p.units * SCALE) / totalUnits);
-  const sumParts = parts.reduce((a, b) => a + b, 0n);
-  const remainder = SCALE - sumParts;
-  if (remainder !== 0n) parts[parts.length - 1] += remainder;
-
-  // prefer sending as numbers; ensure the last one fixes any float error
-  let running = 0;
-  const outputTokens = parts.map((p, idx) => {
-    const asNum = Number(p) / Number(SCALE);
-    if (idx < parts.length - 1) {
-      running += asNum;
-      return { tokenAddress: perTokenUnits[idx].token.address, proportion: asNum };
-    } else {
-      // force exact 1.0 total in JS float world
-      const last = Math.max(0, 1 - running);
-      return { tokenAddress: perTokenUnits[idx].token.address, proportion: last };
-    }
-  });
-
-  const body = {
-    chainId: Number(selectedChain?.chainId),
-    compact: true,
-    inputTokens: [{ tokenAddress: inAddr, amount: totalUnits.toString() }],
-    outputTokens,
-    slippageLimitPercent: options?.slippage ?? 0.5,
-    userAddr: primaryWallet.address,
-    referralCode: 0,
-  };
-
-  const res = await fetch(`${ODOS_BASE}/sor/quote/v2`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body), signal,
-  });
-
-  if (!res.ok) throw new Error(`Odos buy quote failed: ${await res.text()}`);
-  const data = await res.json();
-  const normalized = normalizeOdosQuote(data, selectedChain?.chainId);
-  setBuyQuote(normalized);
-  setLoading(false);
-  return;
-}
-
-
+          const res = await fetch(`${ODOS_BASE}/sor/quote/v2`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
+          if (!res.ok) throw new Error(`Odos buy quote failed: ${await res.text()}`);
+          const data = await res.json();
+          const normalized = normalizeOdosQuote(data, selectedChain?.chainId);
+          console.log('BuyQuote',data,normalized)
+          setBuyQuote(normalized);
+          setLoading(false);
+          return normalized; // <-- return fresh quote
+        }
+        console.log('SellTokens',sellTokens,amounts,mode)
         if (mode === "sell") {
           const inputs: { tokenAddress: string; amount: string }[] = [];
           for (const t of sellTokens) {
@@ -498,11 +371,11 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
             const amtNum = Number(amtStr || 0);
             if (!amtNum || isNaN(amtNum) || amtNum <= 0) continue;
             const tokenObj = getTokenObj(t.address);
-            const decimals = tokenObj?.decimals ?? t.decimals ?? 6;
+            const decimals = tokenObj?.decimals ?? t.decimals ?? 18;
             const units = parseUnits(amtStr as `${number}`, decimals as any).toString();
             inputs.push({ tokenAddress: t.address, amount: units });
           }
-          if (inputs.length === 0) { setSellQuote(null); setLoading(false); return; }
+          if (inputs.length === 0) { setSellQuote(null); setLoading(false); return null; }
 
           const outAddr = getStableAddressForChain(selectedChain?.chainId, sellOutputStable);
           if (!outAddr) throw new Error(`${sellOutputStable} address not found for chain`);
@@ -517,19 +390,14 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
             referralCode: 0,
           };
 
-          const res = await fetch(`${ODOS_BASE}/sor/quote/v2`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-            signal,
-          });
-
+          const res = await fetch(`${ODOS_BASE}/sor/quote/v2`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
           if (!res.ok) throw new Error(`Odos sell quote failed: ${await res.text()}`);
           const data = await res.json();
           const normalized = normalizeOdosQuote(data, selectedChain?.chainId, outAddr);
+          console.log("Sell quote", { body, data, normalized });
           setSellQuote(normalized);
           setLoading(false);
-          return;
+          return normalized; // <-- return fresh quote
         }
 
         if (mode === "perToken") {
@@ -554,70 +422,61 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
             referralCode: 0,
           };
 
-          const res = await fetch(`${ODOS_BASE}/sor/quote/v2`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-            signal,
-          });
-
+          const res = await fetch(`${ODOS_BASE}/sor/quote/v2`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
           if (!res.ok) throw new Error(`Odos perToken quote failed: ${await res.text()}`);
           const data = await res.json();
           const normalized = normalizeOdosQuote(data, selectedChain?.chainId);
           setPerTokenQuotes((prev) => ({ ...(prev || {}), [tokenAddress]: normalized }));
           setLoading(false);
-          return;
+          return normalized; // <-- return fresh quote
         }
+
+        setLoading(false);
+        return null;
       } catch (err: any) {
-        if (err?.name === "AbortError") return;
+        if (err?.name === "AbortError") return null;
         console.error(err);
         setError(err?.message || String(err));
         setLoading(false);
+        return null;
       }
     },
     [buyTokens, sellTokens, amounts, primaryWallet, selectedChain, marketTokens, buyInputStable, sellOutputStable]
   );
 
-  // debounce quotes
-  useEffect(() => {
+  // debounce quotes when amounts or carts change
+useEffect(() => {
+  if (debounceRef.current) window.clearTimeout(debounceRef.current);
+  debounceRef.current = window.setTimeout(() => {
+    if (buyTokens.length > 0) getQuote("buy");
+    else if (sellTokens.length > 0) getQuote("sell");
+  }, 500);
+  return () => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(() => {
-      if (buyTokens.length > 0) getQuote("buy");
-      else if (sellTokens.length > 0) getQuote("sell");
-    }, 500);
-
-    return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    };
-  }, [amounts, buyTokens, sellTokens, getQuote]);
+  };
+}, [amounts, buyTokens, sellTokens, getQuote]);
 
   // ---------------- assemble ----------------
   const assembleTransaction = useCallback(
-    async (options?: { simulate?: boolean; quoteType?: "buy" | "sell" | "perToken"; tokenAddress?: string }) => {
+    async (options?: { simulate?: boolean; quoteType?: "buy" | "sell" | "perToken"; tokenAddress?: string; quote?: QuoteResponse }) => {
       try {
-        setLoading(true);
-        setError(null);
+        setLoading(true); setError(null);
         if (!selectedChain || !primaryWallet?.address) throw new Error("chain or wallet missing");
 
-        const quoteToUse = options?.quoteType === "sell"
-          ? sellQuote
-          : options?.quoteType === "perToken" && options?.tokenAddress
-            ? perTokenQuotes[options.tokenAddress]
-            : buyQuote;
+        const quoteToUse = options?.quote
+          ?? (options?.quoteType === "sell"
+                ? sellQuote
+                : options?.quoteType === "perToken" && options?.tokenAddress
+                  ? perTokenQuotes[options.tokenAddress]
+                  : buyQuote);
         if (!quoteToUse) throw new Error("requested quote not available");
 
         const pathId = quoteToUse.pathId || quoteToUse.id || quoteToUse.quoteId || quoteToUse.path?.id;
         if (!pathId) throw new Error("quote missing id");
 
         const body = { userAddr: primaryWallet.address, pathId, simulate: options?.simulate ?? true };
-
-        const res = await fetch(`${ODOS_BASE}/sor/assemble`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
+        const res = await fetch(`${ODOS_BASE}/sor/assemble`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         if (!res.ok) throw new Error(`Assemble failed: ${await res.text()}`);
-
         const data = await res.json();
         setAssembledTx(data);
         setLoading(false);
@@ -639,22 +498,13 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
     const tokenWithSigner = tokenContract.connect(signer);
     const current: bigint = await tokenContract.allowance(owner, spender);
     if (current >= requiredAmount) return null;
-    if (current !== 0n) {
-      // @ts-ignore
-      const tx0 = await tokenWithSigner.approve(spender, 0n);
-      await tx0.wait(1);
-    }
-    // @ts-ignore
-    const tx1 = await tokenWithSigner.approve(spender, requiredAmount);
-    await tx1.wait(1);
-    return tx1;
+    if (current !== 0n) { const tx0 = await (tokenWithSigner as any).approve(spender, 0n); await tx0.wait(1); }
+    const tx1 = await (tokenWithSigner as any).approve(spender, requiredAmount); await tx1.wait(1); return tx1;
   }
 
   const executeSwap = useCallback(
     async (options?: ExecuteOptions) => {
-      setLoading(true);
-      setError(null);
-
+      setLoading(true); setError(null);
       try {
         const assembledFull = options?.assembled ?? assembledTx;
         if (!assembledFull) throw new Error("No assembled tx; call assembleTransaction first (or pass assembled in options)");
@@ -663,21 +513,13 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
         const toAddress = swapTxObj.to || swapTxObj.router || swapTxObj.spender || swapTxObj.txTo || swapTxObj.tx?.to;
         const calldata = swapTxObj.data || swapTxObj.calldata || swapTxObj.tx?.data || swapTxObj.txData || swapTxObj.encoded || swapTxObj.txData?.data;
         let value: bigint = 0n;
-        try {
-          if (swapTxObj.value !== undefined && swapTxObj.value !== null) {
-            const v = String(swapTxObj.value);
-            value = v.startsWith("0x") ? BigInt(v) : BigInt(v);
-          }
-        } catch {
-          value = 0n;
-        }
-
+        try { if (swapTxObj.value !== undefined && swapTxObj.value !== null) { const v = String(swapTxObj.value); value = v.startsWith("0x") ? BigInt(v) : BigInt(v); } } catch { value = 0n; }
         if (!toAddress || !calldata) throw new Error("assemble response missing to/data");
 
         const quoteToUse = options?.quoteType === "sell"
           ? sellQuote
           : options?.quoteType === "perToken" && options?.tokenAddress
-            ? perTokenQuotes[options.tokenAddress]
+            ? perTokenQuotes[options?.tokenAddress]
             : buyQuote;
 
         const assembledApprovalRaw = assembledFull.approvalData ?? assembledFull.approval ?? assembledFull.approvals;
@@ -687,42 +529,25 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
 
         const approvals: Array<{ tokenAddress: string; spender: string; amount: bigint }> = [];
         const MAX_UINT256 = (1n << 256n) - 1n;
-
-        const pushApproval = (tokenAddress: any, spender: any, _amountRaw?: any) => {
-          if (!tokenAddress || !spender) return;
-          approvals.push({ tokenAddress: String(tokenAddress), spender: String(spender), amount: MAX_UINT256 });
-        };
+        const pushApproval = (tokenAddress: any, spender: any) => { if (!tokenAddress || !spender) return; approvals.push({ tokenAddress: String(tokenAddress), spender: String(spender), amount: MAX_UINT256 }); };
 
         if (Array.isArray(assembledApprovalRaw) && assembledApprovalRaw.length > 0) {
           for (let i = 0; i < Math.min(5, assembledApprovalRaw.length); i++) {
-            const a = assembledApprovalRaw[i];
-            const tokenAddress = a.tokenAddress ?? a.token ?? a.token_addr;
-            const spender = a.spenderAddress ?? a.spender ?? a.spender_addr ?? a.spenderAddress ?? toAddress;
-            pushApproval(tokenAddress, spender, a.amount);
+            const a = assembledApprovalRaw[i]; pushApproval(a.tokenAddress ?? a.token ?? a.token_addr, a.spenderAddress ?? a.spender ?? a.spender_addr ?? toAddress);
           }
         } else if (assembledApprovalRaw && typeof assembledApprovalRaw === "object") {
-          const a = assembledApprovalRaw;
-          const tokenAddress = a.tokenAddress ?? a.token ?? a.token_addr;
-          const spender = a.spenderAddress ?? a.spender ?? a.spender_addr ?? a.spenderAddress ?? toAddress;
-          pushApproval(tokenAddress, spender, a.amount);
+          const a = assembledApprovalRaw; pushApproval(a.tokenAddress ?? a.token ?? a.token_addr, a.spenderAddress ?? a.spender ?? a.spender_addr ?? toAddress);
         } else if (Array.isArray(assembledInputTokens) && assembledInputTokens.length > 0) {
           for (let i = 0; i < Math.min(5, assembledInputTokens.length); i++) {
-            const it = assembledInputTokens[i];
-            if (!it?.tokenAddress || !it?.amount) continue;
-            pushApproval(it.tokenAddress, toAddress, it.amount);
+            const it = assembledInputTokens[i]; if (!it?.tokenAddress) continue; pushApproval(it.tokenAddress, toAddress);
           }
         } else if (Array.isArray(quoteApprovalRaw) && quoteApprovalRaw.length > 0) {
           for (let i = 0; i < Math.min(5, quoteApprovalRaw.length); i++) {
-            const a = quoteApprovalRaw[i];
-            const tokenAddress = a.tokenAddress ?? a.token ?? a.token_addr;
-            const spender = a.spenderAddress ?? a.spender ?? a.spender_addr ?? a.spenderAddress ?? toAddress;
-            pushApproval(tokenAddress, spender, a.amount);
+            const a = quoteApprovalRaw[i]; pushApproval(a.tokenAddress ?? a.token ?? a.token_addr, a.spenderAddress ?? a.spender ?? a.spender_addr ?? toAddress);
           }
         } else if (Array.isArray(quoteInputTokens) && quoteInputTokens.length > 0) {
           for (let i = 0; i < Math.min(5, quoteInputTokens.length); i++) {
-            const it = quoteInputTokens[i];
-            if (!it?.tokenAddress || !it?.amount) continue;
-            pushApproval(it.tokenAddress, toAddress, it.amount);
+            const it = quoteInputTokens[i]; if (!it?.tokenAddress) continue; pushApproval(it.tokenAddress, toAddress);
           }
         }
 
@@ -730,24 +555,16 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
         if (connector && isZeroDevConnector(connector)) {
           try {
             const kernelClient: any = connector.getAccountAbstractionProvider({ withSponsorship: true });
-
             const calls: { to: string; data: string; value?: bigint }[] = [];
             const erc20Interface = new ethers.Interface(ERC20_ABI);
 
             const canReadAllowance = !!provider;
-
             for (const ap of approvals) {
-              const required = ap.amount && ap.amount > 0n ? ap.amount : ((1n << 256n) - 1n);
               let currentAllowance: bigint = 0n;
               if (canReadAllowance) {
-                try {
-                  const tokenContract = new ethers.Contract(ap.tokenAddress, ERC20_ABI, provider);
-                  currentAllowance = await tokenContract.allowance(primaryWallet.address, ap.spender);
-                } catch (e) {
-                  console.warn("Allowance read failed; will include approve for", ap.tokenAddress, ap.spender, e);
-                  currentAllowance = 0n;
-                }
+                try { const tokenContract = new ethers.Contract(ap.tokenAddress, ERC20_ABI, provider); currentAllowance = await tokenContract.allowance(primaryWallet.address, ap.spender); } catch { currentAllowance = 0n; }
               }
+              const required = ap.amount && ap.amount > 0n ? ap.amount : ((1n << 256n) - 1n);
               if (currentAllowance < required) {
                 const approveCalldata = erc20Interface.encodeFunctionData("approve", [ap.spender, required]);
                 calls.push({ to: ap.tokenAddress, data: approveCalldata, value: 0n });
@@ -755,23 +572,19 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
             }
 
             calls.push({ to: toAddress, data: calldata, value: value ?? 0n });
-            const encoded = await kernelClient.account.encodeCalls(
-              calls.map((c) => ({ data: c.data, to: c.to, value: c.value ?? 0n }))
-            );
+            const encoded = await kernelClient.account.encodeCalls(calls.map((c) => ({ data: c.data, to: c.to, value: c.value ?? 0n })));
             const userOpHash = await kernelClient.sendUserOperation({ callData: encoded });
             setLoading(false);
             return userOpHash;
-          } catch (aaErr) {
-            console.error("Account abstraction path failed, falling back to signer tx:", aaErr);
-          }
+          } catch (aaErr) { console.error("AA path failed, fallback to EOA:", aaErr); }
         }
 
         // Non-AA fallback
         if (options?.approveBefore) {
-          const inputTokens: { tokenAddress: string; amount: string }[] = quoteToUse?.inputTokens || assembledFull.inputTokens || [];
+          const inputTokens: { tokenAddress: string; amount: string }[] = (quoteToUse as any)?.inputTokens || assembledFull.inputTokens || [];
           for (const inp of inputTokens) {
-            if (!inp?.tokenAddress || !inp?.amount) continue;
-            const required = BigInt(inp.amount);
+            if (!inp?.tokenAddress) continue;
+            const required = BigInt(inp.amount ?? "0");
             const signer = provider ? provider.getSigner(primaryWallet.address) : null;
             if (!signer) throw new Error("signer/provider required for non-AA approvals");
             await ensureAllowance(signer, inp.tokenAddress, primaryWallet.address, toAddress, required);
@@ -780,19 +593,11 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
 
         const signer = provider ? provider.getSigner(primaryWallet.address) : null;
         if (!signer) throw new Error("provider/signers required to send transaction");
-
-        const txReq: any = { to: toAddress, data: calldata };
-        if (value && value !== 0n) txReq.value = value;
-
-        const tx = await signer.sendTransaction(txReq);
-        await tx.wait(1);
-        setLoading(false);
-        return tx.hash;
+        const txReq: any = { to: toAddress, data: calldata }; if (value && value !== 0n) txReq.value = value;
+        const tx = await signer.sendTransaction(txReq); await tx.wait(1);
+        setLoading(false); return tx.hash;
       } catch (err: any) {
-        console.error(err);
-        setError(err.message || String(err));
-        setLoading(false);
-        return null;
+        console.error(err); setError(err.message || String(err)); setLoading(false); return null;
       }
     },
     [assembledTx, buyQuote, sellQuote, perTokenQuotes, primaryWallet, provider]
@@ -819,21 +624,19 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
         error,
         defaultBuyToken,
         defaultSellToken,
-
         // multi-stable
         buyInputStable,
         sellOutputStable,
         setBuyInputStable,
         setSellOutputStable,
         stableOptions,
-
+        // ops
         addBuyToken,
         addSellToken,
         removeBuyToken,
         removeSellToken,
         updateAmount,
         clearCart,
-
         getQuote,
         assembleTransaction,
         executeSwap,

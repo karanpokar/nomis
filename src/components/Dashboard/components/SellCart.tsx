@@ -21,6 +21,7 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useSwap } from "@/context/SwapContext";
 import { useUser } from "@/context/UserContext";
+import CircularProgress from "@mui/material/CircularProgress";
 
 function safeNumber(v: any) {
   const n = Number(v);
@@ -62,6 +63,7 @@ export default function SellCart() {
   const [processing, setProcessing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
 
   const handleAmountChange = (address: string, value: string) => {
     const sanitized = value === "" ? "" : String(parseFloat(value) || 0);
@@ -84,7 +86,7 @@ export default function SellCart() {
     return { totalValue, totalTokens, networkFee };
   };
 
-  const { totalValue, totalTokens, networkFee } = calcTotals();
+  const { totalValue, totalTokens } = calcTotals();
 
   const handleSell = async () => {
     setLocalError(null);
@@ -105,22 +107,47 @@ export default function SellCart() {
     }
 
     setProcessing(true);
+    setQuoteLoading(true);
 
-    try {
-      await getQuote("sell", { slippage: 0.5 });
-      const assembled = await assembleTransaction({ simulate: true, quoteType: "sell" });
-      if (!assembled) throw new Error("Failed to assemble sell transaction");
+   try {
+  setQuoteLoading(true);
 
-      const result = await executeSwap({ approveBefore: true, quoteType: "sell", assembled });
-      if (result) setMessage(`Swap submitted: ${result}`);
-      else setLocalError("Swap submission failed or was rejected");
-    } catch (err: any) {
-      console.error("Sell error:", err);
-      setLocalError(err?.message || String(err));
-    } finally {
-      setProcessing(false);
-    }
+  // 1) Get fresh quote and use it immediately
+  const q = await getQuote("sell", { slippage: 0.5 });
+  if (!q) throw new Error("Quote unavailable");
+
+  setQuoteLoading(false); // stop the quote spinner now that we have it
+
+  // 2) Assemble with the returned quote (override state timing)
+  const assembled = await assembleTransaction({
+    simulate: true,
+    quoteType: "sell",
+    quote: q, // <-- IMPORTANT
+  });
+  if (!assembled) throw new Error("Failed to assemble sell transaction");
+
+  // 3) Execute
+  const result = await executeSwap({
+    approveBefore: true,
+    quoteType: "sell",
+    assembled,
+  });
+
+  if (result) setMessage(`Swap submitted: ${result}`);
+  else setLocalError("Swap submission failed or was rejected");
+} catch (err: any) {
+  console.error("Sell error:", err);
+  setLocalError(err?.message || String(err));
+} finally {
+  setQuoteLoading(false);
+  setProcessing(false);
+}
+
   };
+console.log(sellQuote)
+  // Only use quote values for summary
+  const usdOut = typeof sellQuote?.netOutValue === "number" ? sellQuote.netOutValue : 0;
+  const networkFee = typeof sellQuote?.gasEstimateValue === "number" ? sellQuote.gasEstimateValue : 0;
 
   return (
     <Box sx={{ display: "flex", gap: 3 }}>
@@ -228,14 +255,14 @@ export default function SellCart() {
         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
           <Typography color="text.secondary">Estimated Output ({sellOutputStable})</Typography>
           <Typography fontWeight={600}>
-            ${typeof sellQuote?.netOutValue === "number" ? sellQuote.netOutValue.toFixed(2) : totalValue.toFixed(2)}
+            {quoteLoading ? <CircularProgress size={18} /> : `$${sellQuote?.raw?.outValues?.[0] || sellQuote?.outValues?.[0] || ''}`}
           </Typography>
         </Box>
 
         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
           <Typography color="text.secondary">Network Fee</Typography>
           <Typography fontWeight={600}>
-            ${typeof sellQuote?.gasEstimateValue === "number" ? sellQuote.gasEstimateValue.toFixed(2) : networkFee.toFixed(2)}
+            {quoteLoading ? <CircularProgress size={18} /> : `$${networkFee.toFixed(2)}`}
           </Typography>
         </Box>
 
@@ -257,7 +284,7 @@ export default function SellCart() {
           fullWidth
           sx={{ borderRadius: 2, textTransform: "none" }}
           onClick={handleSell}
-          disabled={sellTokens.length === 0 || processing}
+          disabled={sellTokens.length === 0 || processing || !sellQuote || quoteLoading}
         >
           {processing ? "Processing..." : "Sell Now"}
         </Button>

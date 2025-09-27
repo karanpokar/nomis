@@ -63,32 +63,46 @@ export default function BuyCart() {
 
   const { totalValue, totalTokens, networkFee } = calcTotals();
 
-  const handleBuy = async () => {
-    setLocalError(null);
-    setMessage(null);
+ const handleBuy = async () => {
+  setLocalError(null);
+  setMessage(null);
 
-    if (buyTokens.length === 0) {
-      setLocalError("No tokens in cart");
-      return;
-    }
+  if (buyTokens.length === 0) {
+    setLocalError("No tokens in cart");
+    return;
+  }
 
-    setProcessing(true);
+  setProcessing(true);
+  try {
+    // 1) Get the fresh quote (SwapContext now RETURNS it)
+    const q = await getQuote("buy", { slippage: 0.5 });
+    if (!q) throw new Error("Quote unavailable");
+    
+    // 2) Assemble using the returned quote (avoid state timing issues)
+    const assembled = await assembleTransaction({
+      simulate: true,
+      quoteType: "buy",
+      quote: q,              // ← pass the override here
+    });
+    if (!assembled) throw new Error("Failed to assemble buy transaction");
 
-    try {
-      await getQuote("buy", { slippage: 0.5 });
-      const assembled = await assembleTransaction({ simulate: true, quoteType: "buy" });
-      if (!assembled) throw new Error("Failed to assemble buy transaction");
+    // 3) Execute
+    const result = await executeSwap({
+      approveBefore: true,
+      quoteType: "buy",
+      assembled,
+    });
 
-      const result = await executeSwap({ approveBefore: true, quoteType: "buy", assembled });
-      if (result) setMessage(`Swap submitted: ${result}`);
-      else setLocalError("Swap submission failed or was rejected");
-    } catch (err: any) {
-      console.error("Buy error:", err);
-      setLocalError(err?.message || String(err));
-    } finally {
-      setProcessing(false);
-    }
-  };
+    if (result) setMessage(`Swap submitted: ${result}`);
+    else setLocalError("Swap submission failed or was rejected");
+  } catch (err: any) {
+    console.error("Buy error:", err);
+    setLocalError(err?.message || String(err));
+  } finally {
+    setProcessing(false);
+  }
+};
+
 
   return (
     <Box sx={{ display: "flex", gap: 3 }}>
@@ -180,7 +194,7 @@ export default function BuyCart() {
         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
           <Typography color="text.secondary">Equivalent ({buyInputStable})</Typography>
           <Typography fontWeight={600}>
-            ${typeof buyQuote?.netOutValue === "number" ? buyQuote.netOutValue.toFixed(2) : totalValue.toFixed(2)}
+            ${buyQuote?.raw?.inValues?.[0] || ''}
           </Typography>
         </Box>
 
@@ -209,7 +223,7 @@ export default function BuyCart() {
           fullWidth
           sx={{ borderRadius: 2, textTransform: "none" }}
           onClick={handleBuy}
-          disabled={buyTokens.length === 0 || processing}
+          disabled={buyTokens.length === 0 || !buyQuote || processing}
         >
           {processing ? "Processing..." : "Buy Now"}
         </Button>
