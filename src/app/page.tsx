@@ -1,11 +1,11 @@
 'use client'
-import Image from 'next/image'
-import {DynamicWidget} from '@dynamic-labs/sdk-react-core'
+
+import Dashboard from '@/components/Dashboard'
 
 export default function Home() {
   return (
-    <main className="f  lex min-h-screen flex-col items-center justify-between p-24">
-      <DynamicWidget/>
+    <main className="flex min-h-screen flex-col items-center justify-between ">
+      <Dashboard/>
     </main>
   )
 }

@@ -39,7 +39,7 @@ export function getCoinBundles(coins, limit = 5) {
 // Group stocks by tag and return top-5 by marketCap for each tag
 export function getStockBundlesByTag(stocks, limit = 5) {
   const grouped = stocks.reduce((acc, stock) => {
-    const tag = stock.tag || "other";
+    const tag = stock.tag || "Other";
     if (!acc[tag]) acc[tag] = [];
     acc[tag].push(stock);
     return acc;
@@ -49,6 +49,7 @@ export function getStockBundlesByTag(stocks, limit = 5) {
     [...arr].sort((a, b) => Number(b.marketCap || 0) - Number(a.marketCap || 0));
 
   const makeBundle = (tag, arr) => ({
+    name: tag.charAt(0).toUpperCase() + tag.slice(1), // Add name for display
     tag,
     images: arr.map(c => c.iconUrl),
     minimumBuy: 10,

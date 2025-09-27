@@ -7,7 +7,10 @@ import { ZeroDevSmartWalletConnectors } from "@dynamic-labs/ethereum-aa";
 import { EthereumWalletConnectors } from "@dynamic-labs/ethereum";
 import React from "react";
 import { TokenProvider } from "@/context/TokenContext";
-
+import { UserProvider } from "@/context/UserContext";
+import { SwapProvider } from "@/context/SwapContext";
+import { ThemeProvider } from "@mui/material";
+import {theme}from '@/utils/theme'
 
 export default function WalletProvider({
   children,
@@ -23,9 +26,17 @@ export default function WalletProvider({
           ZeroDevSmartWalletConnectors,
         ],
       }}
-    ><TokenProvider>
+    >
+      <TokenProvider>
+      <UserProvider>
+        <SwapProvider>
+          <ThemeProvider theme={theme}>
       {children}
+      </ThemeProvider>
+      </SwapProvider>
+       </UserProvider>
       </TokenProvider>
+     
     </DynamicContextProvider>
   );
 }

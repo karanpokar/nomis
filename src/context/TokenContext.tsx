@@ -23,6 +23,8 @@ interface TokenContextType {
   marketTokens: any[];
   bundles: Record<string, any[]>;
   setChain: (chain: string) => void;
+  stockBundles:any[];
+  stockTokens:any[];
 }
 
 const TokenContext = createContext<TokenContextType | undefined>(undefined);
@@ -162,7 +164,7 @@ export const TokenProvider = ({ children }: { children: React.ReactNode }) => {
   }, [chain]);
 
   return (
-    <TokenContext.Provider value={{ chain, marketTokens, bundles, setChain }}>
+    <TokenContext.Provider value={{ chain, marketTokens, bundles, setChain,stockBundles,stockTokens }}>
       {children}
     </TokenContext.Provider>
   );
