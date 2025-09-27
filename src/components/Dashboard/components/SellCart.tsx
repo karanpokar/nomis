@@ -38,8 +38,6 @@ export default function SellCart() {
     assembleTransaction,
     executeSwap,
     sellQuote,
-
-    // NEW
     sellOutputStable,
     setSellOutputStable,
     stableOptions,
@@ -118,11 +116,11 @@ export default function SellCart() {
 
   setQuoteLoading(false); // stop the quote spinner now that we have it
 
-  // 2) Assemble with the returned quote (override state timing)
+
   const assembled = await assembleTransaction({
     simulate: true,
     quoteType: "sell",
-    quote: q, // <-- IMPORTANT
+    quote: q, 
   });
   if (!assembled) throw new Error("Failed to assemble sell transaction");
 

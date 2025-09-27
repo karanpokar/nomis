@@ -13,6 +13,7 @@ import { ethers } from "ethers";
 import { isZeroDevConnector } from "@dynamic-labs/ethereum-aa";
 import { parseUnits } from "viem";
 import { useTokenContext } from "./TokenContext";
+import toast from "react-hot-toast";
 
 // ---------------- ERC20 ABI ----------------
 const ERC20_ABI = [
@@ -358,7 +359,7 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
           if (!res.ok) throw new Error(`Odos buy quote failed: ${await res.text()}`);
           const data = await res.json();
           const normalized = normalizeOdosQuote(data, selectedChain?.chainId);
-          console.log('BuyQuote',data,normalized)
+          //console.log('BuyQuote',data,normalized)
           setBuyQuote(normalized);
           setLoading(false);
           return normalized; // <-- return fresh quote
@@ -394,7 +395,7 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
           if (!res.ok) throw new Error(`Odos sell quote failed: ${await res.text()}`);
           const data = await res.json();
           const normalized = normalizeOdosQuote(data, selectedChain?.chainId, outAddr);
-          console.log("Sell quote", { body, data, normalized });
+          //console.log("Sell quote", { body, data, normalized });
           setSellQuote(normalized);
           setLoading(false);
           return normalized; // <-- return fresh quote
@@ -428,7 +429,7 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
           const normalized = normalizeOdosQuote(data, selectedChain?.chainId);
           setPerTokenQuotes((prev) => ({ ...(prev || {}), [tokenAddress]: normalized }));
           setLoading(false);
-          return normalized; // <-- return fresh quote
+          return normalized; 
         }
 
         setLoading(false);
@@ -436,6 +437,7 @@ export const SwapProvider = ({ children }: { children: ReactNode }) => {
       } catch (err: any) {
         if (err?.name === "AbortError") return null;
         console.error(err);
+        //toast.error('Quote Generate Failed!')
         setError(err?.message || String(err));
         setLoading(false);
         return null;
@@ -574,9 +576,14 @@ useEffect(() => {
             calls.push({ to: toAddress, data: calldata, value: value ?? 0n });
             const encoded = await kernelClient.account.encodeCalls(calls.map((c) => ({ data: c.data, to: c.to, value: c.value ?? 0n })));
             const userOpHash = await kernelClient.sendUserOperation({ callData: encoded });
+            toast.success('Transaction Successful!')
             setLoading(false);
+            setBuyTokens([]); setSellTokens([]); setAmounts({}); setBuyQuote(null); setSellQuote(null);
             return userOpHash;
-          } catch (aaErr) { console.error("AA path failed, fallback to EOA:", aaErr); }
+          } catch (aaErr) { 
+            console.error("AA path failed, fallback to EOA:", aaErr); 
+            toast.error('Transaction Failed!')
+          }
         }
 
         // Non-AA fallback
@@ -624,13 +631,11 @@ useEffect(() => {
         error,
         defaultBuyToken,
         defaultSellToken,
-        // multi-stable
         buyInputStable,
         sellOutputStable,
         setBuyInputStable,
         setSellOutputStable,
         stableOptions,
-        // ops
         addBuyToken,
         addSellToken,
         removeBuyToken,

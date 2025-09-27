@@ -27,7 +27,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 useEffect(() => {
     if (network) {
         /*@ts-ignore*/
-      setSelectedChain(getNetworkById(parseFloat(network)));
+      setSelectedChain(getNetworkById(parseFloat(network || '8453')));
         //switchChain(selectedChain.label);
     }
   }, [network]);

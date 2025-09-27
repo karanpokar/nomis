@@ -14,6 +14,8 @@ import {
   Avatar,
   Tooltip
 } from "@mui/material";
+import { useSwap } from "@/context/SwapContext";
+import toast from "react-hot-toast";
 //import { useSwap } from "@/context/SwapContext";
 
 type Coin = {
@@ -38,7 +40,7 @@ type Bundle = {
 };
 
 export default function BundleTable({ bundles }: { bundles: any[] }) {
-  //const {addBuyToken}=useSwap()
+  const {addBuyToken}=useSwap()
   return (
     <TableContainer
       component={Paper}
@@ -113,9 +115,11 @@ export default function BundleTable({ bundles }: { bundles: any[] }) {
                   size="small"
                   sx={{ borderRadius: 2, textTransform: "none" }}
                   onClick={() =>{
+
                     bundle.coins.forEach((coin:any) => {
-                      //addBuyToken(coin);
+                      addBuyToken(coin);
                     })
+                    toast.success('Bundle added to Buy Cart!')
                   }}
                 >
                   Invest

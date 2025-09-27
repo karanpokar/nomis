@@ -12,6 +12,7 @@ import { SwapProvider } from "@/context/SwapContext";
 import { ThemeProvider } from "@mui/material";
 import {theme}from '@/utils/theme'
 import { VerificationProvider } from "@/context/VerificationContext";
+import { Toaster } from "react-hot-toast";
 
 export default function WalletProvider({
   children,
@@ -28,6 +29,7 @@ export default function WalletProvider({
         ],
       }}
     >
+      <Toaster/>
       <TokenProvider>
       <UserProvider>
         <SwapProvider>

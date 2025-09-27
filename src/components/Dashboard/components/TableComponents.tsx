@@ -13,6 +13,7 @@ import {
 } from "@mui/material";
 import { useSwap } from "@/context/SwapContext";
 import { SparkLineChart } from "@mui/x-charts"; // Add this import
+import toast from "react-hot-toast";
 
 type Token = {
   uuid: string;
@@ -31,7 +32,7 @@ export default function TokenTable({ tokens }: { tokens: any[] }) {
     const {buyTokens,addBuyToken,removeBuyToken}=useSwap()
 
     const isStablecoin = (token: Token) => {
-  const stables = ["USDC", "USDT", "DAI", "BUSD", "TUSD", "USDP", "FDUSD", "USDS"];
+  const stables = ["USDC", "USDT", "DAI", "BUSD", "TUSD", "USDP", "FDUSD", "USDS",'ETH','WETH','weETH'];
   return (
     stables.includes(token.symbol.toUpperCase()) ||
     token.name.toLowerCase().includes("usd")
@@ -147,11 +148,23 @@ for (let i = 0; i < 24; i++) {
               {/* Action */}
               <TableCell align="center">
                 <Button
-                  variant="contained"
-                  size="small"
-                  sx={{ borderRadius: 2, textTransform: "none" }}
+                   variant={isInBuyTokens(token) ? "outlined" : "contained"}
+                      color={isInBuyTokens(token) ? "inherit" : "primary"}
+                      size="small"
+                      sx={{ borderRadius: 2, textTransform: "none" }}
                   onClick={() => 
-                    isInBuyTokens(token) ? removeBuyToken(token?.address) : addBuyToken(token)
+                  {
+                    if(isInBuyTokens(token)){
+removeBuyToken(token?.address)
+toast('Token Removed!', {
+  icon: '🗑️',
+});
+                    }else{
+                      toast.success('Token added to Buy Cart!')
+addBuyToken(token)
+                    }
+                  }
+
                   }
                 >
                   {isInBuyTokens(token)?'Remove':"Buy"}

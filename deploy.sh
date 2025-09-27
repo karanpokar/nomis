@@ -5,7 +5,6 @@
 
 set -e   # exit on first error
 
-# Load environment variables
 if [ -f .env ]; then
   echo "Loading environment variables from .env..."
   source .env
@@ -16,7 +15,6 @@ else
   exit 1
 fi
 
-# Check required vars
 if [ -z "$PRIVATE_KEY" ]; then
   echo "❌ PRIVATE_KEY is not set."
   exit 1

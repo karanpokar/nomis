@@ -14,7 +14,7 @@ import ShowChartIcon from "@mui/icons-material/ShowChart";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import SavingsIcon from "@mui/icons-material/Savings";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
-
+import Logo from '../../asset/logo.png'
 export default function Sidebar({ selectedTab, setSelectedTab }: { selectedTab: string, setSelectedTab: (tab: string) => void }) {
   //const [selectedTab, setSelectedTab] = useState("Market");
 
@@ -43,20 +43,22 @@ export default function Sidebar({ selectedTab, setSelectedTab }: { selectedTab: 
         bgcolor: "white",
       }}
     >
-      {/* Top Section */}
+      
       <Box>
-        {/* Logo / Title */}
-        <Typography
+        
+        {/* <Typography
           variant="h6"
           fontWeight={700}
           sx={{ mb: 2, textAlign: "center", color: "#1976d2" }}
         >
           Nomis
-        </Typography>
-
+        </Typography> */}
+        <Box>
+        <img src={Logo.src} className="w-[110px]" />
+</Box>
         <Divider sx={{ mb: 2 }} />
 
-        {/* Main Menu */}
+        
         <List>
           {mainMenu.map((item) => (
             <ListItem key={item.label} disablePadding sx={{ mb: 1 }}>

@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import { countries, SelfQRcodeWrapper } from '@selfxyz/qrcode'
 import { SelfAppBuilder } from '@selfxyz/qrcode'
 import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
-
+//Duplicate -> Entire Section Written in Context
 export default function Verify() {
   const [selfApp, setSelfApp] = useState<any | null>(null)
   const {primaryWallet}=useDynamicContext();
   useEffect(() => {
-    const userId =primaryWallet?.address // or a UUID depending on your setup
+    const userId =primaryWallet?.address 
     if(userId===undefined || userId===null) return;
     const app = new SelfAppBuilder({
       version: 2,

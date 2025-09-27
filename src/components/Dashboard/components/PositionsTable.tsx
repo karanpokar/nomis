@@ -23,6 +23,7 @@ import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { useUser } from "@/context/UserContext";
 import SellCart from "./SellCart"; // adjust path if needed
 import { useUserTokens } from "@/context/useUserTokens";
+import toast from "react-hot-toast";
 
 type TokenBalanceRow = {
   address: string;
@@ -220,6 +221,9 @@ export default function PositionsTable() {
                       onClick={() => {
                         if (isInSellToken(row)) {
                           removeSellToken(row.address);
+                          toast('Token Removed!', {
+  icon: '🗑️',
+});
                         } else {
                           // add token object compatible with SwapContext Token type
                           addSellToken({
@@ -231,6 +235,7 @@ export default function PositionsTable() {
                             price: row.price,
                             decimals:token.decimals
                           });
+                          toast.success('Token added to Sell Cart!')
                         }
                       }}
                     >
