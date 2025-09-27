@@ -12,13 +12,15 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useSwap } from "@/context/SwapContext";
-//import { useSwap } from "@/context/SwapContext";
 
 export default function BuyCart() {
-  // NOTE: provider exposes updateAmount (not setAmounts) and removeBuyToken(address)
   const {
     removeBuyToken,
     buyTokens,
@@ -29,6 +31,11 @@ export default function BuyCart() {
     assembleTransaction,
     executeSwap,
     buyQuote,
+
+    // NEW
+    buyInputStable,
+    setBuyInputStable,
+    stableOptions,
   } = useSwap();
 
   // local UI state
@@ -37,9 +44,7 @@ export default function BuyCart() {
   const [message, setMessage] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const handleAmountChange = (address: string, value: string, price: number) => {
-    // store raw numeric string (provider expects string amounts sometimes)
-    // here we normalize to a number-like string; provider's updateAmount stores it in amounts map
+  const handleAmountChange = (address: string, value: string) => {
     const sanitized = value === "" ? "" : String(parseFloat(value) || 0);
     updateAmount(address, sanitized);
   };
@@ -62,48 +67,21 @@ export default function BuyCart() {
     setLocalError(null);
     setMessage(null);
 
-    // Guard: no tokens
     if (buyTokens.length === 0) {
       setLocalError("No tokens in cart");
       return;
     }
 
-    // Check defaultBuyToken balance (try to coerce to number safely)
-    /*@ts-ignore*/
-    // console.log("defaultBuyToken:", defaultBuyToken);
-    // const balanceNum = Number(defaultBuyToken?.balance ?? defaultBuyToken?.amount ?? 0);
-    // if (isNaN(balanceNum)) {
-    //   // If we can't read balance, warn but continue (you might prefer to block)
-    //   console.warn("Unable to read defaultBuyToken balance; continuing");
-    // } else {
-    //   if (balanceNum < totalValue + networkFee) {
-    //     setOpenFundsModal(true);
-    //     return;
-    //   }
-    // }
-
     setProcessing(true);
 
     try {
-      // 1) Refresh quote for buy flow
       await getQuote("buy", { slippage: 0.5 });
-
-      // 2) assemble transaction for buy
       const assembled = await assembleTransaction({ simulate: true, quoteType: "buy" });
       if (!assembled) throw new Error("Failed to assemble buy transaction");
 
-      // 3) execute swap (this will try AA batched path and fallback)
-      //const assembled = await assembleTransaction({ simulate: true, quoteType: "buy" });
-
-
-      // Passing approveBefore: true tells non-AA fallback to run approvals before sending tx.
-      const result =await executeSwap({ approveBefore: true, quoteType: "buy", assembled });
-
-      if (result) {
-        setMessage(`Swap submitted: ${result}`);
-      } else {
-        setLocalError("Swap submission failed or was rejected");
-      }
+      const result = await executeSwap({ approveBefore: true, quoteType: "buy", assembled });
+      if (result) setMessage(`Swap submitted: ${result}`);
+      else setLocalError("Swap submission failed or was rejected");
     } catch (err: any) {
       console.error("Buy error:", err);
       setLocalError(err?.message || String(err));
@@ -124,15 +102,7 @@ export default function BuyCart() {
           <Typography color="text.secondary">No tokens added yet.</Typography>
         ) : (
           buyTokens.map((token: any) => (
-            <Box
-              key={token.address}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 2,
-                mb: 2,
-              }}
-            >
+            <Box key={token.address} sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
               {/* Token Info */}
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 150 }}>
                 {token.iconUrl ? (
@@ -141,20 +111,10 @@ export default function BuyCart() {
                     alt={token.symbol}
                     width={28}
                     height={28}
-                    style={{
-                      borderRadius: "50%",
-                      border: `2px solid ${token.color || "#ddd"}`,
-                    }}
+                    style={{ borderRadius: "50%", border: `2px solid ${token.color || "#ddd"}` }}
                   />
                 ) : (
-                  <Box
-                    sx={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: "50%",
-                      background: token.color || "#ddd",
-                    }}
-                  />
+                  <Box sx={{ width: 28, height: 28, borderRadius: "50%", background: token.color || "#ddd" }} />
                 )}
                 <Box>
                   <Typography fontWeight={600}>{token.symbol}</Typography>
@@ -167,7 +127,7 @@ export default function BuyCart() {
                 type="number"
                 label="Amount"
                 value={amounts[token.address] ?? ""}
-                onChange={(e) => handleAmountChange(token.address, e.target.value, Number(token.price))}
+                onChange={(e) => handleAmountChange(token.address, e.target.value)}
                 inputProps={{ min: 0 }}
                 sx={{ width: 120 }}
               />
@@ -190,9 +150,27 @@ export default function BuyCart() {
 
       {/* Right - Summary */}
       <Paper sx={{ flex: 1, p: 2, borderRadius: 3, border: "1px solid #eee" }}>
-        <Typography variant="h6" mb={2}>
-          Summary
-        </Typography>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+          <Typography variant="h6">Summary</Typography>
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <InputLabel id="buy-stable-label">Pay with</InputLabel>
+            <Select
+              labelId="buy-stable-label"
+              label="Pay with"
+              value={buyInputStable}
+              onChange={(e) => setBuyInputStable(e.target.value as any)}
+            >
+              {stableOptions
+                // hide PYUSD when not on Ethereum for clarity (provider will also hide via options)
+                .filter((opt) => opt.symbol !== "PYUSD" || true)
+                .map((opt) => (
+                  <MenuItem key={opt.symbol} value={opt.symbol}>
+                    {opt.symbol}
+                  </MenuItem>
+                ))}
+            </Select>
+          </FormControl>
+        </Box>
 
         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
           <Typography color="text.secondary">Total Tokens</Typography>
@@ -200,7 +178,7 @@ export default function BuyCart() {
         </Box>
 
         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-          <Typography color="text.secondary">Equivalent (USDC)</Typography>
+          <Typography color="text.secondary">Equivalent ({buyInputStable})</Typography>
           <Typography fontWeight={600}>
             ${typeof buyQuote?.netOutValue === "number" ? buyQuote.netOutValue.toFixed(2) : totalValue.toFixed(2)}
           </Typography>
@@ -247,7 +225,7 @@ export default function BuyCart() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenFundsModal(false)}>Cancel</Button>
-          <Button variant="contained" onClick={() => {/* trigger add funds flow */}}>
+          <Button variant="contained" onClick={() => { /* trigger add funds flow */ }}>
             Add Funds
           </Button>
         </DialogActions>

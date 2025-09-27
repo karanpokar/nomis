@@ -18,8 +18,6 @@ import BuyCart from "./components/BuyCart";
 import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { useTokenContext } from "@/context/TokenContext";
 
-/* ---------------- SectionShell ---------------- */
-// Rounded card container with sticky header and its own scroll area
 function SectionShell({
   header,
   children,
@@ -32,18 +30,17 @@ function SectionShell({
       sx={{
         height: "100%",
         width: "100%",
-        maxWidth: 1200,                // optional: limit width for readability
+        maxWidth: 1200,
         mx: "auto",
         bgcolor: "#fff",
         borderRadius: 3,
         border: "1px solid #e5e7eb",
         boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-        overflow: "hidden",            // keep rounded corners clean
+        overflow: "hidden",
         display: "flex",
         flexDirection: "column",
       }}
     >
-      {/* Sticky header */}
       {header && (
         <Box
           sx={{
@@ -60,7 +57,6 @@ function SectionShell({
         </Box>
       )}
 
-      {/* Scrollable body */}
       <Box
         sx={{
           flex: 1,
@@ -68,7 +64,7 @@ function SectionShell({
           px: 3,
           py: 2,
           scrollbarGutter: "stable both-edges",
-          scrollbarWidth: "thin", // Firefox
+          scrollbarWidth: "thin",
           "&::-webkit-scrollbar": { width: 8 },
           "&::-webkit-scrollbar-thumb": {
             borderRadius: 999,
@@ -82,7 +78,6 @@ function SectionShell({
   );
 }
 
-/* ---------------- MARKET ---------------- */
 const Market = () => {
   const { marketTokens, stockTokens, chain } = useTokenContext();
   const [showStocks, setShowStocks] = useState(chain === "ethereum");
@@ -129,7 +124,6 @@ const Market = () => {
   );
 };
 
-/* ---------------- BUNDLES ---------------- */
 const Bundles = () => {
   const { bundles, stockBundles, chain }: any = useTokenContext();
   const [showStockBundles, setShowStockBundles] = useState(false);
@@ -171,7 +165,6 @@ const Bundles = () => {
   );
 };
 
-/* ---------------- POSITIONS ---------------- */
 const Positions = () => (
   <SectionShell
     header={
@@ -187,7 +180,6 @@ const Positions = () => (
   </SectionShell>
 );
 
-/* ---------------- YIELDS ---------------- */
 const Yields = () => (
   <SectionShell header={<Typography variant="h6">Yields</Typography>}>
     <Divider sx={{ mb: 2 }} />
@@ -195,7 +187,6 @@ const Yields = () => (
   </SectionShell>
 );
 
-/* ---------------- DASHBOARD ---------------- */
 export default function Dashboard() {
   const [selectedTab, setSelectedTab] = useState("Market");
 
@@ -220,12 +211,9 @@ export default function Dashboard() {
         overflow: "hidden",
       }}
     >
-      {/* Sidebar */}
       <Box
         sx={{
-         
           flexShrink: 0,
-        
           boxShadow: 2,
           display: "flex",
           flexDirection: "column",
@@ -233,14 +221,12 @@ export default function Dashboard() {
           height: "100vh",
           p: 2,
           borderRadius: 0,
-          
           position: "relative",
           zIndex: 1,
         }}
       >
         <Sidebar setSelectedTab={setSelectedTab} selectedTab={selectedTab} />
       </Box>
-      {/* Main Content */}
       <Box
         sx={{
           flex: 1,
@@ -249,12 +235,11 @@ export default function Dashboard() {
           minWidth: 0,
           height: "100vh",
           overflowY: "auto",
-          p: 0, // Remove extra padding
-          bgcolor: "#f5f6fa", // Match parent bg
-          borderRadius: 0, // Remove border radius
+          p: 0,
+          bgcolor: "#f5f6fa",
+          borderRadius: 0,
         }}
       >
-        {/* This scrolls vertically, while each SectionShell also scrolls */}
         <Box
           sx={{
             flex: 1,
