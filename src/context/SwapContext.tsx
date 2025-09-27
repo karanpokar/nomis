@@ -14,6 +14,7 @@ import { isZeroDevConnector } from "@dynamic-labs/ethereum-aa";
 import { parseUnits } from "viem";
 import { useTokenContext } from "./TokenContext";
 import toast from "react-hot-toast";
+import { getRPCByNetwork } from "@/constants/network";
 
 // ---------------- ERC20 ABI ----------------
 const ERC20_ABI = [
@@ -506,13 +507,21 @@ useEffect(() => {
     const tx1 = await (tokenWithSigner as any).approve(spender, requiredAmount); await tx1.wait(1); return tx1;
   }
 
+  const checkFromTokenBalance = async (tokenAddress: string, owner: string, requiredAmount: bigint) => {
+    const rpc=getRPCByNetwork(selectedChain?.chainId || selectedChain);
+    const provider= new ethers.JsonRpcProvider(rpc);
+    if (!provider) throw new Error("No provider");  
+    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+    const bal: bigint = await tokenContract.balanceOf(owner);
+    if (bal < requiredAmount) throw new Error(`Insufficient ${tokenAddress} balance`);
+  }
+
   const executeSwap = useCallback(
     async (options?: ExecuteOptions) => {
       setLoading(true); setError(null);
       try {
         const assembledFull = options?.assembled ?? assembledTx;
         if (!assembledFull) throw new Error("No assembled tx; call assembleTransaction first (or pass assembled in options)");
-
         const swapTxObj = assembledFull.transaction ?? assembledFull.tx ?? assembledFull;
         const toAddress = swapTxObj.to || swapTxObj.router || swapTxObj.spender || swapTxObj.txTo || swapTxObj.tx?.to;
         const calldata = swapTxObj.data || swapTxObj.calldata || swapTxObj.tx?.data || swapTxObj.txData || swapTxObj.encoded || swapTxObj.txData?.data;

@@ -65,6 +65,10 @@ export const getNetworkById=(chainId: number) => {
   return networks.find((n) => n.chainId === chainId);
 }
 
+export const getRPCByNetwork=(network: string) => {
+  return networks.find((n) => n.value === network)?.rpc;
+}
+
 export const getNetworkByValue=(value: string) => {
   return networks.find((n) => n.value === value);
 }
