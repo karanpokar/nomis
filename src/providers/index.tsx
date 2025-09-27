@@ -11,6 +11,7 @@ import { UserProvider } from "@/context/UserContext";
 import { SwapProvider } from "@/context/SwapContext";
 import { ThemeProvider } from "@mui/material";
 import {theme}from '@/utils/theme'
+import { VerificationProvider } from "@/context/VerificationContext";
 
 export default function WalletProvider({
   children,
@@ -30,9 +31,12 @@ export default function WalletProvider({
       <TokenProvider>
       <UserProvider>
         <SwapProvider>
+          <VerificationProvider>
           <ThemeProvider theme={theme}>
+           
       {children}
       </ThemeProvider>
+       </VerificationProvider>
       </SwapProvider>
        </UserProvider>
       </TokenProvider>

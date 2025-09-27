@@ -1,0 +1,1 @@
+@selfxyz/contracts/=node_modules/@selfxyz/contracts/

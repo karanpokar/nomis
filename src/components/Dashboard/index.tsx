@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Typography,
   Box,
@@ -17,6 +17,8 @@ import YieldPage from "../Yield/YieldPage";
 import BuyCart from "./components/BuyCart";
 import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { useTokenContext } from "@/context/TokenContext";
+import { useVerification } from "@/context/VerificationContext";
+import VerificationQRModal from "../Common/VerificationQRModal";
 
 function SectionShell({
   header,
@@ -80,29 +82,55 @@ function SectionShell({
 
 const Market = () => {
   const { marketTokens, stockTokens, chain } = useTokenContext();
-  const [showStocks, setShowStocks] = useState(chain === "ethereum");
 
-  React.useEffect(() => {
-    if (chain !== "ethereum") setShowStocks(false);
+  const { isVerified, isUSUser, openVerify } = useVerification();
+
+  const [showStocks, setShowStocks] = useState(chain === 'ethereum');
+
+  useEffect(() => {
+    if (chain !== 'ethereum') setShowStocks(false);
   }, [chain]);
 
-  const tokens = showStocks && chain === "ethereum" ? stockTokens : marketTokens;
+  // choose which list to display
+  const tokens = showStocks && chain === 'ethereum' ? stockTokens : marketTokens;
+
+  // handler for Stock Tokens button
+  const handleShowStocks = () => {
+    // If user is from US → do not allow
+    if (isUSUser) {
+      alert('US stocks are not available for users from the United States.');
+      return;
+    }
+
+    // If user not yet verified → show QR
+    if (!isVerified) {
+      openVerify();
+      return;
+    }
+    else{
+      setShowStocks(true);
+    }
+
+    // Otherwise allow switching
+    
+  };
 
   return (
     <SectionShell
       header={
-        <Box sx={{ display: "flex", alignItems: "center" }}>
-          {chain === "ethereum" && (
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <VerificationQRModal />
+          {chain === 'ethereum' && (
             <ButtonGroup>
               <Button
-                variant={!showStocks ? "contained" : "outlined"}
+                variant={!showStocks ? 'contained' : 'outlined'}
                 onClick={() => setShowStocks(false)}
               >
                 Tokens
               </Button>
               <Button
-                variant={showStocks ? "contained" : "outlined"}
-                onClick={() => setShowStocks(true)}
+                variant={showStocks ? 'contained' : 'outlined'}
+                onClick={handleShowStocks}
               >
                 Stock Tokens
               </Button>
@@ -116,13 +144,15 @@ const Market = () => {
       {tokens.length === 0 ? (
         <Typography>No tokens available</Typography>
       ) : (
-        <Box sx={{ display: "grid", gap: 2, overflowX: "auto" }}>
+        <Box sx={{ display: 'grid', gap: 2, overflowX: 'auto' }}>
           <TokenTable tokens={tokens} />
         </Box>
       )}
     </SectionShell>
   );
 };
+
+
 
 const Bundles = () => {
   const { bundles, stockBundles, chain }: any = useTokenContext();
